@@ -39,8 +39,9 @@ def test_recordinality(k_values, hash_functions, algorithm, data_stream, cardina
     Args:
         k_values (list): List of subset sizes to test.
         hash_functions (dict): Dictionary of hash function names and callables.
-        stream_size (int): Total number of elements in the stream.
-        distinct_elements (int): Number of distinct elements in the stream.
+        algorithm (string) : The name of the algorithm you want to try : HLL or REC
+        data_stream (list): The list of data you want to evaluate with the algo.
+        cardinality (int): Number of distinct elements in the stream.
         runs (int): Number of times to repeat each test to average results.
     """
     results = []
