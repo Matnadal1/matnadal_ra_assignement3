@@ -3,6 +3,7 @@ import time
 import random
 import hashlib
 import xxhash
+import os
 from randomhash import RandomHashFamily
 from REC.rec import Recordinality
 from HLL.hll import HyperLogLog 
@@ -18,13 +19,13 @@ n = 1000    # Number of distinct elements
 alpha = 1.2
 
 def sha256_hash_int(element):
-    return int(hashlib.sha256(str(element).encode()).hexdigest(), 16) & 0xFFFFFFFF  # Force un entier 32 bits
+    return int(hashlib.sha256(str(element).encode()).hexdigest(), 16) & 0xFFFFFFFF 
 
 def xxhash32_int(element):
-    return xxhash.xxh32(str(element).encode()).intdigest()  # xxhash32 produit déjà un entier 32 bits
+    return xxhash.xxh32(str(element).encode()).intdigest() 
 
 def python_hash_int(element):
-    return hash(element) & 0xFFFFFFFF  # Entier 32 bits
+    return hash(element) & 0xFFFFFFFF 
 
 def sha256_hash(element):
     return int(hashlib.sha256(str(element).encode()).hexdigest(), 16) / (2**256 - 1)
@@ -67,20 +68,22 @@ def test_recordinality(k_values, hash_functions, algorithm, data_stream, cardina
                     hll = HyperLogLog(p=k, hashfunc=hash_func)
                     hll.add_elements_to_hll(data_stream)
                     estimated_cardinality = hll.count()
-
+                    
                 elapsed_time = time.time() - start_time
                 error = abs(estimated_cardinality - cardinality) / cardinality
 
                 total_time += elapsed_time
                 total_error += error
                 total_estimated_cardinality += estimated_cardinality
-
+            memory = k
+            if algorithm == "HLL":
+                memory=2**k
             average_error = total_error / runs
             average_time = total_time / runs
             average_estimated_cardinality = total_estimated_cardinality / runs
 
             results.append({
-                "k": k,
+                "memory": memory,
                 "cardinality": cardinality,
                 "total_elements": len(data_stream),
                 "average_time": average_time,
@@ -92,14 +95,16 @@ def test_recordinality(k_values, hash_functions, algorithm, data_stream, cardina
             })
 
             print(f"k={k}, Hash={hash_name}, Avg. Error={average_error:.6f}, Avg. Time={average_time:.6f}s")
+    # Append results to CSV
+    file_exists = os.path.isfile(output_file)  
 
-    # Save results to CSV
-    with open(output_file, mode="w", newline="") as file:
+    with open(output_file, mode="a", newline="") as file: 
         writer = csv.DictWriter(file, fieldnames=[
-            "k", "cardinality", "total_elements", "average_time",
-            "algorithm", "hash_function", "average_error", "average_estimated_cardinality","nb_of_run"
+            "memory", "cardinality", "total_elements", "average_time",
+            "algorithm", "hash_function", "average_error", "average_estimated_cardinality", "nb_of_run"
         ])
-        writer.writeheader()
+        if not file_exists: 
+            writer.writeheader()
         writer.writerows(results)
 
     print(f"\nResults saved to {output_file}")
@@ -124,17 +129,18 @@ if __name__ == "__main__":
         "SHA-256": sha256_hash,
         "xxHash32": xxhash32,
         "Python Hash": python_hash,
-        "RandomHashFamily": lambda x: RandomHashFamily(count=1).hashes(str(x))[0] / (2**32 - 1)
+        "RandomHashFamily": lambda x: RandomHashFamily(count=1).hashes(str(x))[0]
     }
+    
     hash_functions_hll = {
         "SHA-256": sha256_hash_int,
         "xxHash32": xxhash32_int,
         "Python Hash": python_hash_int,
         "RandomHashFamily": None
     }
-    test_recordinality(k_values, hash_functions, "REC", list_from_text, true_cardinality, runs=10)
+    test_recordinality(k_values, hash_functions, "REC", data_generator_stream, data_generator_cardinality, runs=1)
 
-    #test_recordinality(p_values, hash_functions_hll, "HLL", list_from_text, true_cardinality, runs=1)
+    test_recordinality(p_values, hash_functions_hll, "HLL", data_generator_stream, data_generator_cardinality, runs=1)
 
 
 
