@@ -2,7 +2,7 @@ from __future__ import annotations
 from randomhash import RandomHashFamily
 import numpy as np
 import warnings
-import struct, copy
+import struct
 from typing import Callable, Optional
 
 # Get the number of bits starting from the first non-zero bit to the right
@@ -114,78 +114,6 @@ class HyperLogLog(object):
         # Large range correction
         return self._largerange_correction(e)
 
-    def merge(self, other: HyperLogLog):
-        """
-        Merge the other HyperLogLog with this one, making this the union of the
-        two.
-
-        Args:
-            other (HyperLogLog): The other HyperLogLog to be merged.
-        """
-        if self.m != other.m or self.p != other.p:
-            raise ValueError(
-                "Cannot merge HyperLogLog with different\
-                    precisions."
-            )
-        self.reg = np.maximum(self.reg, other.reg)
-
-    def digest(self):
-        """
-        Returns:
-            numpy.array: The current internal state.
-        """
-        return copy.copy(self.reg)
-
-    def copy(self):
-        """
-        Create a copy of the current HyperLogLog by exporting its state.
-
-        Returns:
-            HyperLogLog: A copy of the current HyperLogLog.
-        """
-        return self.__class__(reg=self.digest(), hashfunc=self.hashfunc)
-
-    def is_empty(self):
-        """
-        Returns:
-            bool: True if the current HyperLogLog is empty - at the state of just
-            initialized.
-        """
-        if np.any(self.reg):
-            return False
-        return True
-
-    def clear(self):
-        """
-        Reset the current HyperLogLog to empty.
-        """
-        self.reg = np.zeros((self.m,), dtype=np.int8)
-
-    def __len__(self):
-        """
-        Returns:
-            int: Get the size of the HyperLogLog as the size of
-                `reg`.
-        """
-        return len(self.reg)
-
-    def __eq__(self, other: HyperLogLog):
-        """
-        Check equivalence between two HyperLogLogs
-
-        Args:
-            other (HyperLogLog):
-
-        Returns:
-            bool: True if both have the same internal state.
-        """
-        return (
-            type(self) is type(other)
-            and self.p == other.p
-            and self.m == other.m
-            and np.array_equal(self.reg, other.reg)
-        )
-
     def _get_rank(self, bits):
         rank = self.max_rank - _bit_length(bits) + 1
         if rank <= 0:
@@ -201,77 +129,3 @@ class HyperLogLog(object):
 
     def _largerange_correction(self, e):
         return -(1 << 32) * np.log(1.0 - e / (1 << 32))
-
-    @classmethod
-    def union(cls, *hyperloglogs: HyperLogLog):
-        if len(hyperloglogs) < 2:
-            raise ValueError(
-                "Cannot union less than 2 HyperLogLog\
-                    sketches"
-            )
-        m = hyperloglogs[0].m
-        if not all(h.m == m for h in hyperloglogs):
-            raise ValueError(
-                "Cannot union HyperLogLog sketches with\
-                    different precisions"
-            )
-        reg = np.maximum.reduce([h.reg for h in hyperloglogs])
-        h = cls(reg=reg)
-        return h
-
-    def bytesize(self):
-        """Get the size of the HyperLogLog in bytes."""
-        # Since p is no larger than 64, use 8 bits
-        p_size = struct.calcsize("B")
-        reg_val_size = struct.calcsize("B")
-        return p_size + reg_val_size * self.m
-
-    def serialize(self, buf):
-        if len(buf) < self.bytesize():
-            raise ValueError(
-                "The buffer does not have enough space\
-                    for holding this HyperLogLog."
-            )
-        fmt = "B%dB" % self.m
-        struct.pack_into(fmt, buf, 0, self.p, *self.reg)
-
-    @classmethod
-    def deserialize(cls, buf):
-        size = struct.calcsize("B")
-        try:
-            p = struct.unpack_from("B", buf, 0)[0]
-        except TypeError:
-            p = struct.unpack_from("B", buffer(buf), 0)[0]
-        h = cls(p)
-        offset = size
-        try:
-            h.reg = np.array(
-                struct.unpack_from("%dB" % h.m, buf, offset), dtype=np.int8
-            )
-        except TypeError:
-            h.reg = np.array(
-                struct.unpack_from("%dB" % h.m, buffer(buf), offset), dtype=np.int8
-            )
-        return h
-
-    def __getstate__(self):
-        buf = bytearray(self.bytesize())
-        self.serialize(buf)
-        return buf
-
-    def __setstate__(self, buf):
-        size = struct.calcsize("B")
-        try:
-            p = struct.unpack_from("B", buf, 0)[0]
-        except TypeError:
-            p = struct.unpack_from("B", buffer(buf), 0)[0]
-        self.__init__(p=p)
-        offset = size
-        try:
-            self.reg = np.array(
-                struct.unpack_from("%dB" % self.m, buf, offset), dtype=np.int8
-            )
-        except TypeError:
-            self.reg = np.array(
-                struct.unpack_from("%dB" % self.m, buffer(buf), offset), dtype=np.int8
-            )

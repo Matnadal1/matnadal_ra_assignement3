@@ -10,13 +10,12 @@ from HLL.hll import HyperLogLog
 from Generator.generator import generate_list
 from Tools.file_reader import read_txt_as_list, get_cardinality_and_dict_from_dat
 
+configurations = [
+    {"N": 1000, "n": 100, "alpha": 1.2},
+]
+
 text = "C:/Users/Utilisateur/OneDrive/Documents/cours_20242025/RA/assignement3/datasets/dracula.txt"
 text_dat = "C:/Users/Utilisateur/OneDrive/Documents/cours_20242025/RA/assignement3/datasets/dracula.dat"
-
-# Example of generator usage
-N = 10000  # Total stream size
-n = 1000    # Number of distinct elements
-alpha = 1.2
 
 def sha256_hash_int(element):
     return int(hashlib.sha256(str(element).encode()).hexdigest(), 16) & 0xFFFFFFFF 
@@ -113,10 +112,7 @@ if __name__ == "__main__":
     # Extract Text data
     list_from_text = read_txt_as_list(text)
     true_cardinality, frequency_dict = get_cardinality_and_dict_from_dat(text_dat)
-
-    # Generator
-    data_generator_stream, data_generator_cardinality, data_generator_frequency_dict = generate_list(N, n, "zipf", alpha)
-
+    
     # HLL
     hll = HyperLogLog()
     hll.add_elements_to_hll(list_from_text)
@@ -138,9 +134,18 @@ if __name__ == "__main__":
         "Python Hash": python_hash_int,
         "RandomHashFamily": None
     }
-    test_recordinality(k_values, hash_functions, "REC", data_generator_stream, data_generator_cardinality, runs=1)
+    
+    
+    for config in configurations:
+        N = config["N"]
+        n = config["n"]
+        alpha = config["alpha"]
+        print(f"\nRunning tests for N={N}, n={n}, alpha={alpha}\n")
 
-    test_recordinality(p_values, hash_functions_hll, "HLL", data_generator_stream, data_generator_cardinality, runs=1)
+        # Generator
+        data_generator_stream, data_generator_cardinality, data_generator_frequency_dict = generate_list(N, n, "zipf", alpha)
 
-
+        # Lancer les tests
+        test_recordinality(k_values, hash_functions, "REC", data_generator_stream, data_generator_cardinality, runs=1, output_file="results_rec.csv")
+        test_recordinality(p_values, hash_functions_hll, "HLL", data_generator_stream, data_generator_cardinality, runs=1, output_file="results_hll.csv")
 
